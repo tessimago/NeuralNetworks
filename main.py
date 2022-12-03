@@ -104,6 +104,7 @@ class ReLU:
         self.dinputs = dvalues.copy()
         # Zero gradient where input values were negative
         self.dinputs[self.inputs <= 0] = 0
+        a = 0
 
 
 class Loss:
@@ -308,26 +309,25 @@ class Optimizer_SGD:
         self.iterations += 1
 
 
-steps = 16
-
-np.random.seed(0)
-
-
 class NeuralNetwork:
     def __init__(self):
         self.layers = []
-        self.activationFunction = ReLU()
+        self.activationFunction = []
         self.endFunction = Softmax()
         self.loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
         self.optimizer = Optimizer_Adam(learning_rate=0.015, decay=1e-5)
 
     def addLayer(self, l):
         self.layers.append(l)
+        if len(self.layers) > 1:
+            self.activationFunction.append(ReLU())
+
     def getWeigthBias(self):
         w_b = []
         for l in self.layers:
             w_b.append(l.getWeightsBias())
         return w_b
+
     def learn(self, X, y, times, steps):
         for n in range(times):
             for i in range(0, len(X), steps):
@@ -336,17 +336,17 @@ class NeuralNetwork:
                     if lIdx == 0:
                         l.forward(X[i:i + steps])
                     else:
-                        l.forward(self.activationFunction.outputs)
+                        l.forward(self.activationFunction[lIdx-1].outputs)
                     if lIdx == len(self.layers) - 1:
                         break
-                    self.activationFunction.forward(l.outputs)
+                    self.activationFunction[lIdx].forward(l.outputs)
 
                 # loss_function = Loss_CategoricalCrossentropy()
 
                 # loss = loss_function.calculate(softmax.outputs, y)
                 loss = self.loss_activation.forward(self.layers[-1].outputs, y[i:i + steps])
 
-                accuracy = self.loss_activation.acc(y[i:i + steps])
+                #accuracy = self.loss_activation.acc(y[i:i + steps])
 
                 # if not n % 10:
                 #    print(f'epoch: {n}, ' +
@@ -355,16 +355,15 @@ class NeuralNetwork:
                 #          f'lr: {self.optimizer.current_learning_rate}')
                 # Backward pass
                 self.loss_activation.backward(self.loss_activation.outputs, y[i:i + steps])
-
                 for lIdx in range(len(self.layers) - 1, -1, -1):
                     l = self.layers[lIdx]
                     if lIdx == len(self.layers) - 1:
                         l.backward(self.loss_activation.dinputs)
                     else:
-                        l.backward(self.activationFunction.dinputs)
+                        l.backward(self.activationFunction[lIdx].dinputs)
                     if lIdx == 0:
                         break
-                    self.activationFunction.backward(l.dinputs)
+                    self.activationFunction[lIdx-1].backward(l.dinputs)
 
                 self.optimizer.pre_update_params()
                 for l in self.layers:
@@ -377,10 +376,10 @@ class NeuralNetwork:
             if lIdx == 0:
                 l.forward(X)
             else:
-                l.forward(self.activationFunction.outputs)
+                l.forward(self.activationFunction[lIdx-1].outputs)
             if lIdx == len(self.layers) - 1:
                 break
-            self.activationFunction.forward(l.outputs)
+            self.activationFunction[lIdx].forward(l.outputs)
         self.endFunction.forward(self.layers[-1].outputs)
         idx = np.argmax(self.endFunction.outputs, axis=1)
         return idx
@@ -388,8 +387,10 @@ class NeuralNetwork:
 
 nn = NeuralNetwork()
 nn.addLayer(Layer(28 ** 2, 64))
+nn.addLayer(Layer(64, 64))
+nn.addLayer(Layer(64, 64))
 nn.addLayer(Layer(64, 3))
-nn.learn(X, y, 201, 32) #int(len(X)/25))
+nn.learn(X, y, 1001, 32) #int(len(X)/25))
 # optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
 
 # ---------------------------
