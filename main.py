@@ -9,33 +9,29 @@ nnfs.init()
 np.random.seed(0)
 
 
-#----------------------
-f = open("testsCircle", "r")
-text = f.read()
-lol0 = json.loads(text)
-
-listGoal0 = [0]*len(lol0)
-
-f = open("tests1", "r")
-text = f.read()
-lol1 = json.loads(text)
-
-listGoal1 = [1]*len(lol1)
-
-f = open("tests2", "r")
-text2 = f.read()
-lol2 = json.loads(text2)
-
-listGoal2 = [2]*len(lol2)
-
-Xt = lol0 + lol1 + lol2
-X = np.array(lol0 + lol1 + lol2)
-y = np.array(listGoal0 + listGoal1 + listGoal2)
-
-#----------------------
+# Files with tipe list of tuples, ex: [("file1", 0), ("file2", 1), ...] | Tuple = (filename, expected_output)
+def getXy(files_results):
+    Xt = []
+    yt = []
+    for fn, n in files_results:
+        f = open(fn, "r")
+        text = f.read()
+        Xtmp = json.loads(text)
+        ytmp = [n] * len(Xtmp)
+        print(fn, ":",len(Xtmp), "samples")
+        Xt += Xtmp
+        yt += ytmp
+    return np.array(Xt), np.array(yt)
 
 
-#X, y = spiral_data(100, 3)
+# ----------------------
+files = [("testsCircle", 0), ("tests1", 1), ("tests2", 2)]
+X, y = getXy(files)
+
+# ----------------------
+
+
+# X, y = spiral_data(100, 3)
 
 
 class Layer:
@@ -44,12 +40,14 @@ class Layer:
         self.outputs = None
         self.weights = 0.10 * np.random.randn(n_inputs, n_neurons)
         self.biases = np.zeros((1, n_neurons))
-    def setWeightsBias(self,w,b):
+
+    def setWeightsBias(self, w, b):
         self.weights = w
         self.biases = b
 
     def getWeightsBias(self):
         return [self.weights, self.biases]
+
     def forward(self, inputs):
         self.inputs = inputs
         self.outputs = np.dot(inputs, self.weights) + self.biases
@@ -191,7 +189,7 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
 class Optimizer_Adam:
     # Initialize optimizer - set settings
     def __init__(self, learning_rate=0.001, decay=0., epsilon=1e-7,
-        beta_1=0.9, beta_2=0.999):
+                 beta_1=0.9, beta_2=0.999):
         self.learning_rate = learning_rate
         self.current_learning_rate = learning_rate
         self.decay = decay
@@ -199,12 +197,14 @@ class Optimizer_Adam:
         self.epsilon = epsilon
         self.beta_1 = beta_1
         self.beta_2 = beta_2
+
     # Call once before any parameter updates
     def pre_update_params(self):
         if self.decay:
             self.current_learning_rate = self.learning_rate * \
-            (1. / (1. + self.decay * self.iterations))
+                                         (1. / (1. + self.decay * self.iterations))
         # Update parameters
+
     def update_params(self, layer):
         # If layer does not contain cache arrays,
         # create them filled with zeros
@@ -215,39 +215,40 @@ class Optimizer_Adam:
             layer.bias_cache = np.zeros_like(layer.biases)
         # Update momentum with current gradients
         layer.weight_momentums = self.beta_1 * \
-        layer.weight_momentums + \
-        (1 - self.beta_1) * layer.dweights
+                                 layer.weight_momentums + \
+                                 (1 - self.beta_1) * layer.dweights
         layer.bias_momentums = self.beta_1 * \
-        layer.bias_momentums + \
-        (1 - self.beta_1) * layer.dbiases
+                               layer.bias_momentums + \
+                               (1 - self.beta_1) * layer.dbiases
         # Get corrected momentum
         # self.iteration is 0 at first pass
         # and we need to start with 1 here
         weight_momentums_corrected = layer.weight_momentums / \
-        (1 - self.beta_1 ** (self.iterations + 1))
+                                     (1 - self.beta_1 ** (self.iterations + 1))
         bias_momentums_corrected = layer.bias_momentums / \
-        (1 - self.beta_1 ** (self.iterations + 1))
+                                   (1 - self.beta_1 ** (self.iterations + 1))
         # Update cache with squared current gradients
         layer.weight_cache = self.beta_2 * layer.weight_cache + \
-        (1 - self.beta_2) * layer.dweights**2
+                             (1 - self.beta_2) * layer.dweights ** 2
         layer.bias_cache = self.beta_2 * layer.bias_cache + \
-        (1 - self.beta_2) * layer.dbiases**2
+                           (1 - self.beta_2) * layer.dbiases ** 2
 
         # Get corrected cache
         weight_cache_corrected = layer.weight_cache / \
-        (1 - self.beta_2 ** (self.iterations + 1))
+                                 (1 - self.beta_2 ** (self.iterations + 1))
         bias_cache_corrected = layer.bias_cache / \
-        (1 - self.beta_2 ** (self.iterations + 1))
+                               (1 - self.beta_2 ** (self.iterations + 1))
         # Vanilla SGD parameter update + normalization
         # with square rooted cache
         layer.weights += -self.current_learning_rate * \
-        weight_momentums_corrected / \
-        (np.sqrt(weight_cache_corrected) +
-        self.epsilon)
+                         weight_momentums_corrected / \
+                         (np.sqrt(weight_cache_corrected) +
+                          self.epsilon)
         layer.biases += -self.current_learning_rate * \
-        bias_momentums_corrected / \
-        (np.sqrt(bias_cache_corrected) +
-        self.epsilon)
+                        bias_momentums_corrected / \
+                        (np.sqrt(bias_cache_corrected) +
+                         self.epsilon)
+
     # Call once after any parameter updates
     def post_update_params(self):
         self.iterations += 1
@@ -311,17 +312,22 @@ steps = 16
 
 np.random.seed(0)
 
+
 class NeuralNetwork:
     def __init__(self):
         self.layers = []
         self.activationFunction = ReLU()
         self.endFunction = Softmax()
         self.loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
-        self.optimizer = Optimizer_Adam(learning_rate=0.02, decay=1e-5)
+        self.optimizer = Optimizer_Adam(learning_rate=0.015, decay=1e-5)
 
     def addLayer(self, l):
         self.layers.append(l)
-
+    def getWeigthBias(self):
+        w_b = []
+        for l in self.layers:
+            w_b.append(l.getWeightsBias())
+        return w_b
     def learn(self, X, y, times, steps):
         for n in range(times):
             for i in range(0, len(X), steps):
@@ -331,10 +337,9 @@ class NeuralNetwork:
                         l.forward(X[i:i + steps])
                     else:
                         l.forward(self.activationFunction.outputs)
-                    if lIdx == len(self.layers)-1:
+                    if lIdx == len(self.layers) - 1:
                         break
                     self.activationFunction.forward(l.outputs)
-
 
                 # loss_function = Loss_CategoricalCrossentropy()
 
@@ -343,7 +348,7 @@ class NeuralNetwork:
 
                 accuracy = self.loss_activation.acc(y[i:i + steps])
 
-                #if not n % 10:
+                # if not n % 10:
                 #    print(f'epoch: {n}, ' +
                 #          f'acc: {accuracy:.3f}, ' +
                 #          f'loss: {loss:.3f}, ' +
@@ -351,9 +356,9 @@ class NeuralNetwork:
                 # Backward pass
                 self.loss_activation.backward(self.loss_activation.outputs, y[i:i + steps])
 
-                for lIdx in range(len(self.layers)-1, -1, -1):
+                for lIdx in range(len(self.layers) - 1, -1, -1):
                     l = self.layers[lIdx]
-                    if lIdx == len(self.layers)-1:
+                    if lIdx == len(self.layers) - 1:
                         l.backward(self.loss_activation.dinputs)
                     else:
                         l.backward(self.activationFunction.dinputs)
@@ -365,7 +370,8 @@ class NeuralNetwork:
                 for l in self.layers:
                     self.optimizer.update_params(l)
                 self.optimizer.post_update_params()
-    def test(self,X):
+
+    def test(self, X):
         for lIdx in range(0, len(self.layers)):
             l = self.layers[lIdx]
             if lIdx == 0:
@@ -379,45 +385,27 @@ class NeuralNetwork:
         idx = np.argmax(self.endFunction.outputs, axis=1)
         return idx
 
+
 nn = NeuralNetwork()
 nn.addLayer(Layer(28 ** 2, 64))
 nn.addLayer(Layer(64, 3))
-nn.learn(X, y, 101, 15)
+nn.learn(X, y, 201, 32) #int(len(X)/25))
 # optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
 
-#-------------------------------
-f = open("tests0After", "r")
-text = f.read()
-tlol0 = json.loads(text)
-
-tlistGoal = [0]*len(tlol0)
-
-f = open("tests1After", "r")
-text = f.read()
-tlol1 = json.loads(text)
-
-tlistGoal1 = [1]*len(tlol1)
-
-f = open("tests2After", "r")
-text = f.read()
-tlol2 = json.loads(text)
-
-tlistGoal2 = [2]*len(tlol2)
-#---------------------------
-
-X1 = np.array(tlol0 + tlol1 + tlol2)
-y1 = np.array(tlistGoal + tlistGoal1 + tlistGoal2)
-#--------------------------
-
+# ---------------------------
+filest = [("tests0After", 0), ("tests1After", 1), ("tests2After", 2)]
+X1, y1 = getXy(filest)
+# --------------------------
 
 pred = nn.test(X1)
-print(pred)
-print(y1)
+print("pred:", pred)
+print("expt:", y1)
+
 accuracy = np.mean(pred == y1)
-print(f'acc: {accuracy:.3f}')
+print(f'accuracy: {accuracy*100:.3f} %')
 
 np.set_printoptions(threshold=np.inf)
-#f = open("weightsBias", "w")
+# f = open("weightsBias", "w")
 
-#lista = np.array([layer1.getWeightsBias(),layer2.getWeightsBias()])
-#np.save("weightsBias", lista)
+# lista = np.array([layer1.getWeightsBias(),layer2.getWeightsBias()])
+# np.save("weightsBias", lista)
