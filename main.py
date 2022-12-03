@@ -28,15 +28,6 @@ lol2 = json.loads(text2)
 
 listGoal2 = [2]*len(lol2)
 
-#lolcorte = int((len(lol)/2))
-#lol2corte = int((len(lol2)/2))
-#Xtests = lol[:lolcorte] + lol2[:lol2corte]
-
-#listGoalcorte = int((len(listGoal)/2))
-#listGoal2corte = int((len(listGoal2)/2))
-#ytests = listGoal[:listGoalcorte] + listGoal2[:listGoal2corte]
-
-
 Xt = lol0 + lol1 + lol2
 X = np.array(lol0 + lol1 + lol2)
 y = np.array(listGoal0 + listGoal1 + listGoal2)
@@ -53,7 +44,12 @@ class Layer:
         self.outputs = None
         self.weights = 0.10 * np.random.randn(n_inputs, n_neurons)
         self.biases = np.zeros((1, n_neurons))
+    def setWeightsBias(self,w,b):
+        self.weights = w
+        self.biases = b
 
+    def getWeightsBias(self):
+        return [self.weights, self.biases]
     def forward(self, inputs):
         self.inputs = inputs
         self.outputs = np.dot(inputs, self.weights) + self.biases
@@ -315,51 +311,79 @@ steps = 16
 
 np.random.seed(0)
 
+class NeuralNetwork:
+    def __init__(self):
+        self.layers = []
+        self.activationFunction = ReLU()
+        self.endFunction = Softmax()
+        self.loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
+        self.optimizer = Optimizer_Adam(learning_rate=0.02, decay=1e-5)
 
-layer1 = Layer(28 ** 2, 64)
-layerMID = Layer(64, 64)
-layer2 = Layer(64, 3)
-reLU = ReLU()
-softmax = Softmax()
-loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
+    def addLayer(self, l):
+        self.layers.append(l)
+
+    def learn(self, X, y, times, steps):
+        for n in range(times):
+            for i in range(0, len(X), steps):
+                for lIdx in range(0, len(self.layers)):
+                    l = self.layers[lIdx]
+                    if lIdx == 0:
+                        l.forward(X[i:i + steps])
+                    else:
+                        l.forward(self.activationFunction.outputs)
+                    if lIdx == len(self.layers)-1:
+                        break
+                    self.activationFunction.forward(l.outputs)
+
+
+                # loss_function = Loss_CategoricalCrossentropy()
+
+                # loss = loss_function.calculate(softmax.outputs, y)
+                loss = self.loss_activation.forward(self.layers[-1].outputs, y[i:i + steps])
+
+                accuracy = self.loss_activation.acc(y[i:i + steps])
+
+                #if not n % 10:
+                #    print(f'epoch: {n}, ' +
+                #          f'acc: {accuracy:.3f}, ' +
+                #          f'loss: {loss:.3f}, ' +
+                #          f'lr: {self.optimizer.current_learning_rate}')
+                # Backward pass
+                self.loss_activation.backward(self.loss_activation.outputs, y[i:i + steps])
+
+                for lIdx in range(len(self.layers)-1, -1, -1):
+                    l = self.layers[lIdx]
+                    if lIdx == len(self.layers)-1:
+                        l.backward(self.loss_activation.dinputs)
+                    else:
+                        l.backward(self.activationFunction.dinputs)
+                    if lIdx == 0:
+                        break
+                    self.activationFunction.backward(l.dinputs)
+
+                self.optimizer.pre_update_params()
+                for l in self.layers:
+                    self.optimizer.update_params(l)
+                self.optimizer.post_update_params()
+    def test(self,X):
+        for lIdx in range(0, len(self.layers)):
+            l = self.layers[lIdx]
+            if lIdx == 0:
+                l.forward(X)
+            else:
+                l.forward(self.activationFunction.outputs)
+            if lIdx == len(self.layers) - 1:
+                break
+            self.activationFunction.forward(l.outputs)
+        self.endFunction.forward(self.layers[-1].outputs)
+        idx = np.argmax(self.endFunction.outputs, axis=1)
+        return idx
+
+nn = NeuralNetwork()
+nn.addLayer(Layer(28 ** 2, 64))
+nn.addLayer(Layer(64, 3))
+nn.learn(X, y, 101, 15)
 # optimizer = Optimizer_SGD(decay=1e-3, momentum=0.9)
-optimizer = Optimizer_Adam(learning_rate=0.02, decay=1e-5)
-
-for n in range(101):
-
-    for i in range(0, len(X), steps):
-        layer1.forward(X[i:i + steps])
-        reLU.forward(layer1.outputs)
-        #layerMID.forward(reLU.outputs)
-        #reLU.forward(layerMID.outputs)
-        layer2.forward(reLU.outputs)
-        # softmax.forward(layer2.outputs)
-
-        # loss_function = Loss_CategoricalCrossentropy()
-
-        # loss = loss_function.calculate(softmax.outputs, y)
-        loss = loss_activation.forward(layer2.outputs, y[i:i + steps])
-
-        accuracy = loss_activation.acc(y[i:i + steps])
-
-        if not n % 10:
-            print(f'epoch: {n}, ' +
-                  f'acc: {accuracy:.3f}, ' +
-                  f'loss: {loss:.3f}, ' +
-                  f'lr: {optimizer.current_learning_rate}')
-        # Backward pass
-        loss_activation.backward(loss_activation.outputs, y[i:i + steps])
-        layer2.backward(loss_activation.dinputs)
-        #reLU.backward(layer2.dinputs)
-        #layerMID.backward(reLU.dinputs)
-        reLU.backward(layer2.dinputs)
-        layer1.backward(reLU.dinputs)
-
-        optimizer.pre_update_params()
-        optimizer.update_params(layer1)
-        #optimizer.update_params(layerMID)
-        optimizer.update_params(layer2)
-        optimizer.post_update_params()
 
 #-------------------------------
 f = open("tests0After", "r")
@@ -381,28 +405,19 @@ tlol2 = json.loads(text)
 tlistGoal2 = [2]*len(tlol2)
 #---------------------------
 
-#Xtests = lol[lolcorte:] #+ lol2[lol2corte:]
-#ytests = listGoal[listGoalcorte:] #+ listGoal2[listGoal2corte:]
 X1 = np.array(tlol0 + tlol1 + tlol2)
 y1 = np.array(tlistGoal + tlistGoal1 + tlistGoal2)
-
 #--------------------------
 
 
-layer1.forward(X1)
-reLU.forward(layer1.outputs)
-#layerMID.forward(reLU.outputs)
-#reLU.forward(layerMID.outputs)
-layer2.forward(reLU.outputs)
-loss = loss_activation.forward(layer2.outputs, y1)
-
-accuracy = loss_activation.acc(y1)
-
-print(np.argmax(loss_activation.outputs, axis=1))
+pred = nn.test(X1)
+print(pred)
 print(y1)
+accuracy = np.mean(pred == y1)
+print(f'acc: {accuracy:.3f}')
 
-print(f'acc: {accuracy:.3f}, ' +
-      f'loss: {loss:.3f}, ' +
-      f'lr: {optimizer.current_learning_rate}, '
-      f'steps: {steps}')
+np.set_printoptions(threshold=np.inf)
+#f = open("weightsBias", "w")
 
+#lista = np.array([layer1.getWeightsBias(),layer2.getWeightsBias()])
+#np.save("weightsBias", lista)
